@@ -1,7 +1,9 @@
 # project specific additions
 data/
-old/
 output/
+wandb/
+.DS_Store
+~/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -1,0 +1,12 @@
+gdown==4.4.0
+image-classifiers @ git+https://github.com/qubvel/classification_models.git@a0f006e05485a34ccf871c421279864b0ccd220b
+ipykernel==6.19.4
+requests==2.27.1
+seaborn==0.11.2
+sklearn==0.0
+six==1.16.0
+tensorflow-addons==0.16.1
+tensorflow-privacy==0.8.5
+tensorflow-probability==0.15.0
+wandb==0.13.9
+wheel==0.37.1
