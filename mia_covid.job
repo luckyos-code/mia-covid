@@ -103,7 +103,7 @@ echo $ds $model $eps
 
 # load packages
 module load TensorFlow/2.7.1-foss-2021b-CUDA-11.4.1
-source venv/mia_covid-wandb/bin/activate
+source venv/mia-covid/bin/activate
 
 # set environment variable for pythonpath to prefer venv packages and wandb settings
 export $(grep -v '^#' .env | xargs)
