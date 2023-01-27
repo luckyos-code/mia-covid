@@ -4,6 +4,7 @@ output/
 wandb/
 .DS_Store
 ~/
+clara-cluster_testing.ipynb
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
