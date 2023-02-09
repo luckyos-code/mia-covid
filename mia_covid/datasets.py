@@ -229,6 +229,9 @@ def get_covid(dataset_name, data_path, img_shape, batch_size, val_test_split=(0.
         batch_size=batch_size,
         augment_train=True)
 
+    if not imbalance_ratio:
+        train_batched.repeat()
+
     ds_info = {
         'name': dataset_name,
         'img_shape': img_shape,

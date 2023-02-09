@@ -58,10 +58,13 @@ def trainModel(model, dataset, setting, callbacks=[]):
     elif not dataset.info['val_count']:
         learning_rate_decay = ReduceLROnPlateau(monitor='loss', patience=2, factor=0.1, min_lr=1e-6)
 
+    steps_per_epoch = None if setting.imbalance_ratio else dataset.info['train_count']//setting.batch_size
+
     print("Training %s ..." % (model.name))
     history = model.fit(
         dataset.train_batched,
         epochs=setting.epochs,
+        steps_per_epoch=steps_per_epoch,
         validation_data=dataset.val_batched, # might be None
         class_weight=dataset.info['class_weights'], # might be None
         callbacks=[learning_rate_decay, *callbacks],
