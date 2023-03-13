@@ -1,5 +1,17 @@
-from dataclasses import dataclass, field
-from typing import Tuple, Dict, List
+from dataclasses import dataclass
+from typing import Optional
+from mia_covid.abstract_dataset_handler import AbstractDataset
+
+from mia_covid.models import model_settings
+
+
+# Settings
+@dataclass(eq=True, frozen=False)
+class privacy():
+    target_eps: float
+    delta: Optional[float] = None  # placeholder to set in model compilation
+    noise: float = 0.0  # update in model compilation if private
+
 
 @dataclass(eq=True, frozen=False)
 class commons:
@@ -11,42 +23,15 @@ class commons:
     l2_clip: float = 1.0
     mia_samplenb: int = 100
 
-@dataclass(eq=True, frozen=False)
-class covid: #class covid(commons):
-    dataset_name: str = 'covid'
-    img_shape: Tuple[int, int, int] = (224, 224, 3) # original size is 299x299x3
-    val_test_split: Tuple[int, int] = (0.05, 0.15) # 80-5-15 for train-val-test
-    imbalance_ratio: float = 1.5 # undersampling to 1.5x the normal images compared to covid
-    variants: List[Dict] = field(default_factory=lambda: [
-            {'activation': 'relu', 'pretraining': None},
-            {'activation': 'relu', 'pretraining': 'imagenet'},
-            {'activation': 'relu', 'pretraining': 'pneumonia'},
-            {'activation': 'tanh', 'pretraining': None},
-            {'activation': 'tanh', 'pretraining': 'imagenet'},
-            {'activation': 'tanh', 'pretraining': 'pneumonia'},
-        ])
 
+# TODO: - we could also use inheritance here, but composition seems like the cleaner aproach to me
+#       - including the complex abstractdataset class in this composition is not really nice -> maybe split the abstractdataset class up into dataclass_settings and functionality class
 @dataclass(eq=True, frozen=False)
-class mnist:
-    dataset_name: str = 'mnist'
-    img_shape: Tuple[int, int, int] = (28, 28, 3) # original size is 28x28x1
-    variants: List[Dict] = field(default_factory=lambda: [
-            {'activation': 'relu', 'pretraining': None},
-            {'activation': 'relu', 'pretraining': 'imagenet'},
-            {'activation': 'tanh', 'pretraining': None},
-            {'activation': 'tanh', 'pretraining': 'imagenet'},
-        ])
-        
-#TODO class pneumonia
+class run_settings:
+    commons: commons
+    privacy: privacy
+    model_setting: model_settings
+    dataset: AbstractDataset
 
-@dataclass(eq=True, frozen=False)
-class resnet18:
-    architecture: str = 'resnet18'
-    batch_size: int = 32
-    batch_size_private_covid: int = 16 # selection handled in code
 
-@dataclass(eq=True, frozen=False)
-class resnet50:
-    architecture: str = 'resnet50'
-    batch_size: int = 32
-    batch_size_private_covid: int = 8 # selection handled in code
+# TODO class pneumonia

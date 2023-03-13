@@ -1,4 +1,5 @@
-import sys, os
+import sys
+import os
 import numpy as np
 import scipy.stats as st
 from collections import Counter
@@ -18,6 +19,9 @@ from tensorflow_privacy.privacy.privacy_tests.membership_inference_attack.data_s
 from tensorflow_privacy.privacy.privacy_tests.membership_inference_attack.data_structures import AttackInputData
 from tensorflow_privacy.privacy.privacy_tests.membership_inference_attack.data_structures import SingleAttackResult
 from tensorflow_privacy.privacy.privacy_tests.membership_inference_attack import membership_inference_attack as mia
+from mia_covid.abstract_dataset_handler import AbstractDataset
+
+from mia_covid.settings import run_settings
 
 """
 Performance evaluation
@@ -26,6 +30,8 @@ Performance evaluation
 """
 Metrics for model evaluation (already needed at compile step)
 """
+
+
 def getMetrics(ds_info):
     if len(ds_info['class_counts']) == 2:
         metrics = [
@@ -35,39 +41,42 @@ def getMetrics(ds_info):
             F1Score(num_classes=1, threshold=0.5)
         ]
     elif len(ds_info['class_counts']) > 2:
-        metrics = [ # uses classification_report later
+        metrics = [  # uses classification_report later
             'accuracy'
         ]
 
     return metrics
 
+
 """
 Overall performance evaluation workflow
 """
-def evaluateModelPerformance(model, dataset):
-    if len(dataset.info['class_counts']) > 2:
+
+
+def evaluateModelPerformance(model, dataset: AbstractDataset):
+    if len(dataset.ds_info['class_counts']) > 2:
         labels_eval = []
-        for x, y in dataset.test_attack_data.as_numpy_iterator():
+        for x, y in dataset.ds_attack_test.as_numpy_iterator():
             labels_eval.append(y[0])
 
     performance_results = []
     print("Evaluating %s ..." % (model.name))
-    eval_res = model.evaluate(dataset.test_batched, verbose=2)
+    eval_res = model.evaluate(dataset.ds_test, verbose=2)
     print('\n')
 
-    performance_result =  {
-            'loss': eval_res[0],
-            'accuracy': eval_res[1],
+    performance_result = {
+        'loss': eval_res[0],
+        'accuracy': eval_res[1],
     }
 
-    if len(dataset.info['class_counts']) == 2:
+    if len(dataset.ds_info['class_counts']) == 2:
         performance_result.update({
             'precision': eval_res[2],
             'recall': eval_res[3],
             'f1-score': eval_res[4][0],
         })
-    elif len(dataset.info['class_counts']) > 2:
-        y_pred = model.predict(dataset.test_attack_data)
+    elif len(dataset.ds_info['class_counts']) > 2:
+        y_pred = model.predict(dataset.ds_attack_test)
         y_pred = tf.argmax(y_pred, axis=1)
         report_dictionary = classification_report(labels_eval, y_pred, output_dict=True)
         print(classification_report(labels_eval, y_pred, output_dict=False, digits=3))
@@ -80,6 +89,7 @@ def evaluateModelPerformance(model, dataset):
 
     return performance_result
 
+
 """
 Privacy evaluation
 """
@@ -87,22 +97,30 @@ Privacy evaluation
 """
 Calculate noise for given training hyperparameters
 """
+
+
 def compute_noise(n, batch_size, target_epsilon, epochs, delta, min_noise=1e-5):
     return tfp_computer_noise(n, batch_size, target_epsilon, epochs, delta, min_noise)
+
 
 """
 Calculate Delta for given training dataset size n
 """
+
+
 def compute_delta(n):
     # delta should be one magnitude lower than inverse of training set size: 1/n
     # e.g. 1e-5 for n=60.000
     # take 1e-x, were x is the magnitude of training set size
-    delta = np.power(10, - float(len(str(n)))) # remove all trailing decimals
+    delta = np.power(10, - float(len(str(n))))  # remove all trailing decimals
     return delta
+
 
 """
 Construct MIA inputs
 """
+
+
 def compute_attack_inputs(model, attack_data, ds_info):
     # labels
     labels = []
@@ -119,12 +137,15 @@ def compute_attack_inputs(model, attack_data, ds_info):
     elif len(ds_info['class_counts']) > 2:
         scc = tf.keras.backend.sparse_categorical_crossentropy
         losses = scc(constant([[y] for y in labels]), constant(probs), from_logits=from_logits).numpy()
-    
+
     return (np.array(probs), np.array(losses), np.array(labels))
+
 
 """
 Single MIA experiment
 """
+
+
 def run_mia(model, train_attack_input, test_attack_input):
     # prepare attacks
     probs_train, loss_train, labels_train = train_attack_input
@@ -133,19 +154,19 @@ def run_mia(model, train_attack_input, test_attack_input):
     attack_input = AttackInputData(
         # logits_train = logits_train,
         # logits_test = logits_test,
-        probs_train = probs_train,
-        probs_test = probs_test,
+        probs_train=probs_train,
+        probs_test=probs_test,
         # loss_train = loss_train,
         # loss_test = loss_test,
-        labels_train = labels_train,
-        labels_test = labels_test
+        labels_train=labels_train,
+        labels_test=labels_test
     )
 
-    slicing_spec = SlicingSpec( # only evaluate on complete dataset
-        entire_dataset = True,
-        by_class = False,
-        by_percentiles = False,
-        by_classification_correctness = False
+    slicing_spec = SlicingSpec(  # only evaluate on complete dataset
+        entire_dataset=True,
+        by_class=False,
+        by_percentiles=False,
+        by_classification_correctness=False
     )
 
     attack_types = [
@@ -154,8 +175,8 @@ def run_mia(model, train_attack_input, test_attack_input):
         # AttackType.RANDOM_FOREST, # error because of tree model deprciation
         AttackType.K_NEAREST_NEIGHBORS,
         AttackType.THRESHOLD_ATTACK,
-        #AttackType.THRESHOLD_ENTROPY_ATTACK, # error because incompatible formatting for entropy
-    ] 
+        # AttackType.THRESHOLD_ENTROPY_ATTACK, # error because incompatible formatting for entropy
+    ]
 
     # run several attacks for different data slices
     attack_results = mia.run_attacks(attack_input=attack_input,
@@ -163,12 +184,12 @@ def run_mia(model, train_attack_input, test_attack_input):
                                      attack_types=attack_types)
 
     # plot the ROC curve of the best classifier
-    #plotting.plot_roc_curve(attacks_result.get_result_with_max_auc().roc_curve)
-    #plt.show()
+    # plotting.plot_roc_curve(attacks_result.get_result_with_max_auc().roc_curve)
+    # plt.show()
 
     # print a user-friendly summary of the attacks
-    #print(attacks_result.summary(by_slices=False))
-    
+    # print(attacks_result.summary(by_slices=False))
+
     # get best auc, attacker advantage, and positive predictive value
     max_auc = attack_results.get_result_with_max_auc().get_auc()
     max_adv = attack_results.get_result_with_max_attacker_advantage().get_attacker_advantage()
@@ -178,65 +199,71 @@ def run_mia(model, train_attack_input, test_attack_input):
 
     return max_auc, max_adv, max_ppv, adv_atk_type
 
+
 """
 Method for print suppression
 """
+
+
 @contextmanager
 def suppress_stdout():
     with open(os.devnull, "w") as devnull:
         old_stdout = sys.stdout
         sys.stdout = devnull
-        try:  
+        try:
             yield
         finally:
             sys.stdout = old_stdout
 
+
 """
 Overall privacy evaluation workflow
 """
-def evaluateModelPrivacy(model, dataset, setting):
+
+
+def evaluateModelPrivacy(model, dataset: AbstractDataset, setting: run_settings):
     # Calculate spent pivacy loss epsilon
     eps, order = compute_dp_sgd_privacy(
-        dataset.info['train_count'],
-        setting.batch_size,
-        setting.noise,
-        setting.epochs,
-        setting.delta
+        dataset.ds_info['train_count'],
+        setting.model_setting.batch_size,
+        setting.privacy.noise,
+        setting.commons.epochs,
+        setting.privacy.delta
     )
-    #print(eps, order)
-    #print('Achieved epsilon = %.3f with delta = %f for noise scale = %.3f'%(eps, setting.delta, setting.noise))
+    print(eps, order)
+    print('Achieved epsilon = %.3f with delta = %f for noise scale = %.3f' % (eps, setting.privacy.delta, setting.privacy.noise))
     print('\n')
 
-    print('Membership Inference Attacks on '+model.name+'...')
-    train_attack_input = compute_attack_inputs(model, dataset.train_attack_data, dataset.info)
-    test_attack_input = compute_attack_inputs(model, dataset.test_attack_data, dataset.info)
+    print('Membership Inference Attacks on ' + model.name + '...')
+    train_attack_input = compute_attack_inputs(model, dataset.ds_attack_train, dataset.ds_info)
+    test_attack_input = compute_attack_inputs(model, dataset.ds_attack_test, dataset.ds_info)
 
     aucs, advs, ppvs = [], [], []
     adv_atk_types = []
-    for i in range(setting.mia_samplenb):
+    for i in range(setting.commons.mia_samplenb):
         with suppress_stdout():
             max_auc, max_adv, max_ppv, adv_atk_type = run_mia(model, train_attack_input, test_attack_input)
         aucs.append(max_auc)
         advs.append(max_adv)
         ppvs.append(max_ppv)
         adv_atk_types.append(adv_atk_type)
-        if (i+1) % 10 == 0:
-            print('MIA %i/%i...'%(i+1, setting.mia_samplenb))
+        if (i + 1) % 10 == 0:
+            print('MIA %i/%i...' % (i + 1, setting.commons.mia_samplenb))
 
-    auc_low, auc_high = st.t.interval(0.95, len(aucs)-1, loc=np.mean(aucs), scale=st.sem(aucs))
-    adv_low, adv_high = st.t.interval(0.95, len(advs)-1, loc=np.mean(advs), scale=st.sem(advs))
-    ppv_low, ppv_high = st.t.interval(0.95, len(ppvs)-1, loc=np.mean(ppvs), scale=st.sem(ppvs))
+    auc_low, auc_high = st.t.interval(0.95, len(aucs) - 1, loc=np.mean(aucs), scale=st.sem(aucs))
+    adv_low, adv_high = st.t.interval(0.95, len(advs) - 1, loc=np.mean(advs), scale=st.sem(advs))
+    ppv_low, ppv_high = st.t.interval(0.95, len(ppvs) - 1, loc=np.mean(ppvs), scale=st.sem(ppvs))
     auc_max, adv_max, ppv_max = np.max(aucs), np.max(advs), np.max(ppvs)
-    
+
     print('\n')
-    print('95%%-CI based on %i attack samples'%(setting.mia_samplenb))
-    print('AUC: %0.2f-%0.2f , max: %0.2f'%(auc_low, auc_high, auc_max))
-    print('Attacker advantage: %0.2f-%0.2f , max: %0.2f'%(adv_low, adv_high, adv_max))
-    adv_mean = np.mean([adv_low*100, adv_high*100])
-    adv_diff = adv_high*100 - adv_mean
-    print('Attacker advantage: %2.1f+-%2.1f'%(adv_mean, adv_diff))
+    print('95%%-CI based on %i attack samples' % (setting.commons.mia_samplenb))
+    print('AUC: %0.2f-%0.2f , max: %0.2f' % (auc_low, auc_high, auc_max))
+    print('Attacker advantage: %0.2f-%0.2f , max: %0.2f' % (adv_low, adv_high, adv_max))
+    adv_mean = np.mean([adv_low * 100, adv_high * 100])
+    adv_diff = adv_high * 100 - adv_mean
+    print('Attacker advantage: %2.1f+-%2.1f' % (adv_mean, adv_diff))
     print('Attack types having max advantage: ' + str(Counter(adv_atk_types)))
-    print('Positive predictive value: %0.2f-%0.2f , max: %0.2f'%(ppv_low, ppv_high, ppv_max))
+    print('Positive predictive value: %0.2f-%0.2f , max: %0.2f' % (ppv_low, ppv_high, ppv_max))
     print('\n')
 
     privacy_result = {
@@ -254,8 +281,3 @@ def evaluateModelPrivacy(model, dataset, setting):
     }
 
     return privacy_result, eps
-
-
-
-
-
