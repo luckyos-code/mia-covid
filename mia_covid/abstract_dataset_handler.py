@@ -6,7 +6,7 @@ from sklearn.utils import class_weight
 from tensorflow.keras.layers import Layer, Resizing, Rescaling, RandomFlip, RandomRotation, RandomTranslation, RandomZoom
 from dataclasses import dataclass, field
 from collections import defaultdict
-from typing import Tuple, Dict, Any, Optional, List, Union
+from typing import Tuple, Dict, Any, Optional, List, Union, Callable
 import scipy.stats
 import os
 import glob
@@ -36,11 +36,12 @@ class RandomBrightness(Layer):
 class ModelPreprocessing(Layer):
     """Layer for specific model preprocessing steps."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, pre_func: Callable[[float], tf.Tensor], **kwargs):
         super().__init__(**kwargs)
+        self.pre_func = pre_func
 
     def call(self, x):
-        return tf.keras.applications.resnet50.preprocess_input(x)
+        return self.pre_func(x)
 
 
 @dataclass(eq=True, frozen=False)
@@ -51,15 +52,18 @@ class AbstractDataset():
     # shape that the dataset should be transformed to
     model_img_shape: Tuple[int, int, int]
     train_val_test_split: Tuple[float, float, float]
+
     batch_size: int
     convert_rgb: bool
     augment_train: bool
-    # TODO: use a functional approach here and save a reference to a preprocessing function passed when instantiating the class
-    resnet50_preprocessing: bool
+
     shuffle: bool
     is_tfds_ds: bool
     # if True, automatically builds ds_info after loading dataset data
     builds_ds_info: bool = field(default=False, repr=False)
+
+    # model specific preprocessing for the dataset like: tf.keras.applications.resnet50.preprocess_input
+    preprocessing_function: Optional[Callable[[float], tf.Tensor]] = None
 
     imbalance_ratio: Optional[float] = None
     variants: Optional[List[Dict]] = None
@@ -171,26 +175,26 @@ class AbstractDataset():
         """
         # prepare attack datasets
         # we need to first prepare the attack DS since they depend on the unmodified original datasets
-        self.ds_attack_train = self.prepare_ds(self.ds_train, cache=True, resize_rescale=True, img_shape=self.model_img_shape, batch_size=1, convert_rgb=self.convert_rgb, preprocessing=self.resnet50_preprocessing, shuffle=False, augment=False)
+        self.ds_attack_train = self.prepare_ds(self.ds_train, cache=True, resize_rescale=True, img_shape=self.model_img_shape, batch_size=1, convert_rgb=self.convert_rgb, preprocessing_func=self.preprocessing_function, shuffle=False, augment=False)
         if self.ds_test is not None:
-            self.ds_attack_test = self.prepare_ds(self.ds_test, cache=True, resize_rescale=True, img_shape=self.model_img_shape, batch_size=1, convert_rgb=self.convert_rgb, preprocessing=self.resnet50_preprocessing, shuffle=False, augment=False)
+            self.ds_attack_test = self.prepare_ds(self.ds_test, cache=True, resize_rescale=True, img_shape=self.model_img_shape, batch_size=1, convert_rgb=self.convert_rgb, preprocessing_func=self.preprocessing_function, shuffle=False, augment=False)
         elif self.ds_val is not None:
-            self.ds_attack_test = self.prepare_ds(self.ds_val, cache=True, resize_rescale=True, img_shape=self.model_img_shape, batch_size=1, convert_rgb=self.convert_rgb, preprocessing=self.resnet50_preprocessing, shuffle=False, augment=False)
+            self.ds_attack_test = self.prepare_ds(self.ds_val, cache=True, resize_rescale=True, img_shape=self.model_img_shape, batch_size=1, convert_rgb=self.convert_rgb, preprocessing_func=self.preprocessing_function, shuffle=False, augment=False)
 
         dataset_path: str = ""
         # prepare non-attack datasets
         if self.dataset_path:
             dataset_path = self.dataset_path
 
-        self.ds_train = self.prepare_ds(self.ds_train, cache=os.path.join(dataset_path, 'data.tfcache.' + self.dataset_name), resize_rescale=True, img_shape=self.model_img_shape, batch_size=self.batch_size, convert_rgb=self.convert_rgb, preprocessing=self.resnet50_preprocessing, shuffle=self.shuffle, augment=self.augment_train)
+        self.ds_train = self.prepare_ds(self.ds_train, cache=os.path.join(dataset_path, 'data.tfcache.' + self.dataset_name), resize_rescale=True, img_shape=self.model_img_shape, batch_size=self.batch_size, convert_rgb=self.convert_rgb, preprocessing_func=self.preprocessing_function, shuffle=self.shuffle, augment=self.augment_train)
 
         if self.ds_val is not None:
-            self.ds_val = self.prepare_ds(self.ds_val, cache=True, resize_rescale=True, img_shape=self.model_img_shape, batch_size=self.batch_size, convert_rgb=self.convert_rgb, preprocessing=self.resnet50_preprocessing, shuffle=False, augment=False)
+            self.ds_val = self.prepare_ds(self.ds_val, cache=True, resize_rescale=True, img_shape=self.model_img_shape, batch_size=self.batch_size, convert_rgb=self.convert_rgb, preprocessing_func=self.preprocessing_function, shuffle=False, augment=False)
 
         if self.ds_test is not None:
-            self.ds_test = self.prepare_ds(self.ds_test, cache=True, resize_rescale=True, img_shape=self.model_img_shape, batch_size=self.batch_size, convert_rgb=self.convert_rgb, preprocessing=self.resnet50_preprocessing, shuffle=False, augment=False)
+            self.ds_test = self.prepare_ds(self.ds_test, cache=True, resize_rescale=True, img_shape=self.model_img_shape, batch_size=self.batch_size, convert_rgb=self.convert_rgb, preprocessing_func=self.preprocessing_function, shuffle=False, augment=False)
 
-    def prepare_ds(self, ds: tf.data.Dataset, resize_rescale: bool, img_shape: Tuple[int, int, int], batch_size: Optional[int], convert_rgb: bool, preprocessing: bool, shuffle: bool, augment: bool, cache: Union[str, bool] = True) -> tf.data.Dataset:
+    def prepare_ds(self, ds: tf.data.Dataset, resize_rescale: bool, img_shape: Tuple[int, int, int], batch_size: Optional[int], convert_rgb: bool, preprocessing_func: Optional[Callable[[float], tf.Tensor]], shuffle: bool, augment: bool, cache: Union[str, bool] = True) -> tf.data.Dataset:
         """Prepare datasets for training and validation for the ResNet50 model.
 
         This function applies image resizing, resnet50-preprocessing to the dataset. Optionally the data can be shuffled or further get augmented (random flipping, etc.)
@@ -217,11 +221,10 @@ class AbstractDataset():
             preprocessing_layers.add(Resizing(img_shape[0], img_shape[1]))
             preprocessing_layers.add(Rescaling(scale=1. / 255))
 
-        # TODO: replace static set resnet50 preprocessing function with dynamic prepcrocessing layer function
-        if preprocessing:
-            preprocessing_layers.add(ModelPreprocessing())
+        if preprocessing_func:
+            preprocessing_layers.add(ModelPreprocessing(preprocessing_func))
 
-        if convert_rgb or resize_rescale or preprocessing:
+        if convert_rgb or resize_rescale or preprocessing_func:
             ds = ds.map(lambda x, y: (preprocessing_layers(x), y),
                         num_parallel_calls=AUTOTUNE)
 

@@ -5,13 +5,13 @@ import numpy as np
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from mia_covid.utils import get_img
-from typing import Tuple, List, Dict, Optional
+from typing import Callable, Tuple, List, Dict, Optional
 
 
 class MnistDataset(AbstractDataset):
-    def __init__(self, model_img_shape: Tuple[int, int, int], builds_ds_info: bool = False, batch_size : int = 32, model_preprocessing: bool = True):
+    def __init__(self, model_img_shape: Tuple[int, int, int], builds_ds_info: bool = False, batch_size: int = 32, preprocessing_func: Optional[Callable[[float], tf.Tensor]] = None):
         """Initialize the MNIST dataset from AbstractDataset class."""
-        super().__init__(dataset_name="mnist", dataset_path="data", dataset_img_shape=(28, 28, 1), model_img_shape=model_img_shape, train_val_test_split=(1, 0, 1), batch_size=batch_size, imbalance_ratio=1.5, convert_rgb=True, augment_train=True, resnet50_preprocessing=model_preprocessing, shuffle=True, is_tfds_ds=True, builds_ds_info=builds_ds_info)
+        super().__init__(dataset_name="mnist", dataset_path="data", dataset_img_shape=(28, 28, 1), model_img_shape=model_img_shape, train_val_test_split=(1, 0, 1), batch_size=batch_size, imbalance_ratio=1.5, convert_rgb=True, augment_train=True, preprocessing_function=preprocessing_func, shuffle=True, is_tfds_ds=True, builds_ds_info=builds_ds_info)
 
         variants: List[Dict[str, Optional[str]]] = [
             {'activation': 'relu', 'pretraining': None},
@@ -23,33 +23,33 @@ class MnistDataset(AbstractDataset):
 
 
 class FashionMnistDataset(AbstractDataset):
-    def __init__(self, model_img_shape: Tuple[int, int, int], builds_ds_info: bool = False, batch_size : int = 32, model_preprocessing: bool = True):
+    def __init__(self, model_img_shape: Tuple[int, int, int], builds_ds_info: bool = False, batch_size: int = 32, preprocessing_func: Optional[Callable[[float], tf.Tensor]] = None):
         """Initialize the fashion MNIST dataset from AbstractDataset class."""
-        super().__init__(dataset_name="fashion_mnist", dataset_path="data", dataset_img_shape=(28, 28, 1), model_img_shape=model_img_shape, train_val_test_split=(1, 0, 1), batch_size=batch_size, convert_rgb=True, augment_train=True, resnet50_preprocessing=model_preprocessing, shuffle=True, is_tfds_ds=True, builds_ds_info=builds_ds_info)
+        super().__init__(dataset_name="fashion_mnist", dataset_path="data", dataset_img_shape=(28, 28, 1), model_img_shape=model_img_shape, train_val_test_split=(1, 0, 1), batch_size=batch_size, convert_rgb=True, augment_train=True, preprocessing_function=preprocessing_func, shuffle=True, is_tfds_ds=True, builds_ds_info=builds_ds_info)
 
 
 class Cifar10Dataset(AbstractDataset):
-    def __init__(self, model_img_shape: Tuple[int, int, int], builds_ds_info: bool = False, batch_size : int = 32, model_preprocessing: bool = True):
+    def __init__(self, model_img_shape: Tuple[int, int, int], builds_ds_info: bool = False, batch_size: int = 32, preprocessing_func: Optional[Callable[[float], tf.Tensor]] = None):
         """Initialize the Cifar100 dataset from AbstractDataset class."""
-        super().__init__(dataset_name="cifar10", dataset_path="data", dataset_img_shape=(32, 32, 3), model_img_shape=model_img_shape, train_val_test_split=(1, 0, 1), batch_size=batch_size, convert_rgb=False, augment_train=True, resnet50_preprocessing=model_preprocessing, shuffle=True, is_tfds_ds=True, builds_ds_info=builds_ds_info)
+        super().__init__(dataset_name="cifar10", dataset_path="data", dataset_img_shape=(32, 32, 3), model_img_shape=model_img_shape, train_val_test_split=(1, 0, 1), batch_size=batch_size, convert_rgb=False, augment_train=True, preprocessing_function=preprocessing_func, shuffle=True, is_tfds_ds=True, builds_ds_info=builds_ds_info)
 
 
 class Cifar100Dataset(AbstractDataset):
-    def __init__(self, model_img_shape: Tuple[int, int, int], builds_ds_info: bool = False, batch_size : int = 32, model_preprocessing: bool = True):
+    def __init__(self, model_img_shape: Tuple[int, int, int], builds_ds_info: bool = False, batch_size: int = 32, preprocessing_func: Optional[Callable[[float], tf.Tensor]] = None):
         """Initialize the Cifar100 dataset from AbstractDataset class."""
-        super().__init__(dataset_name="cifar100", dataset_path="data", dataset_img_shape=(32, 32, 3), model_img_shape=model_img_shape, train_val_test_split=(1, 0, 1), batch_size=batch_size, convert_rgb=False, augment_train=True, resnet50_preprocessing=model_preprocessing, shuffle=True, is_tfds_ds=True, builds_ds_info=builds_ds_info)
+        super().__init__(dataset_name="cifar100", dataset_path="data", dataset_img_shape=(32, 32, 3), model_img_shape=model_img_shape, train_val_test_split=(1, 0, 1), batch_size=batch_size, convert_rgb=False, augment_train=True, preprocessing_function=preprocessing_func, shuffle=True, is_tfds_ds=True, builds_ds_info=builds_ds_info)
 
 
 class ImagenetteDataset(AbstractDataset):
-    def __init__(self, model_img_shape: Tuple[int, int, int], builds_ds_info: bool = False, batch_size : int = 32, model_preprocessing: bool = True):
+    def __init__(self, model_img_shape: Tuple[int, int, int], builds_ds_info: bool = False, batch_size: int = 32, preprocessing_func: Optional[Callable[[float], tf.Tensor]] = None):
         """Initialize the full size v2 imagenette dataset from AbstractDataset class."""
-        super().__init__(dataset_name="imagenette/full-size-v2", dataset_path="data", dataset_img_shape=(None, None, 3), model_img_shape=model_img_shape, train_val_test_split=(1, 1, 0), batch_size=batch_size, convert_rgb=False, augment_train=True, resnet50_preprocessing=model_preprocessing, shuffle=True, is_tfds_ds=True, builds_ds_info=builds_ds_info)
+        super().__init__(dataset_name="imagenette/full-size-v2", dataset_path="data", dataset_img_shape=(None, None, 3), model_img_shape=model_img_shape, train_val_test_split=(1, 1, 0), batch_size=batch_size, convert_rgb=False, augment_train=True, preprocessing_function=preprocessing_func, shuffle=True, is_tfds_ds=True, builds_ds_info=builds_ds_info)
 
 
 class Covid19RadiographyDataset(AbstractDataset):
-    def __init__(self, model_img_shape: Tuple[int, int, int], dataset_path: str, builds_ds_info: bool = False, batch_size : int = 32, model_preprocessing: bool = True):
+    def __init__(self, model_img_shape: Tuple[int, int, int], dataset_path: str, builds_ds_info: bool = False, batch_size: int = 32, preprocessing_func: Optional[Callable[[float], tf.Tensor]] = None):
         """Initialize the Covid19 dataset from AbstractDataset class."""
-        super().__init__(dataset_name="covid19-radiography", dataset_path=dataset_path, dataset_img_shape=(299,299,3), model_img_shape=model_img_shape, train_val_test_split=(0.8, 0.05, 0.15), batch_size=batch_size, convert_rgb=False, augment_train=True, resnet50_preprocessing=model_preprocessing, shuffle=True, is_tfds_ds=False, builds_ds_info=builds_ds_info)
+        super().__init__(dataset_name="covid19-radiography", dataset_path=dataset_path, dataset_img_shape=(299, 299, 3), model_img_shape=model_img_shape, train_val_test_split=(0.8, 0.05, 0.15), batch_size=batch_size, convert_rgb=False, augment_train=True, preprocessing_function=preprocessing_func, shuffle=True, is_tfds_ds=False, builds_ds_info=builds_ds_info)
 
         variants: List[Dict[str, Optional[str]]] = [
             {'activation': 'relu', 'pretraining': None},

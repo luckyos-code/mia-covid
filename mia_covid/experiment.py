@@ -9,7 +9,7 @@ from mia_covid.datasets import Covid19RadiographyDataset, MnistDataset
 from mia_covid.utils import set_random_seeds
 from mia_covid.abstract_dataset_handler import AbstractDataset
 from contextlib import nullcontext
-from typing import Dict, Any
+from typing import Dict, Any, Optional, Callable
 
 
 '''
@@ -36,16 +36,19 @@ def runExperiment(arg_dict: Dict["str", Any]):
     print("Number of devices for training: {}\n".format(strategy.num_replicas_in_sync))
 
     model_setting: model_settings = None
+    preprocessing_func: Optional[Callable[[float], tf.Tensor]] = None
     if arg_dict["model"] == "resnet18":
         model_setting = resnet18
+        # TODO: keras does not come provide a resnet18 preprocessing input function -> we should maybe write our own?
     elif arg_dict["model"] == "resnet50":
         model_setting = resnet50
+        preprocessing_func = tf.keras.applications.resnet50.preprocess_input
 
     dataset: AbstractDataset = None
     if arg_dict["dataset"] == "mnist":
-        dataset = MnistDataset(model_img_shape=(28, 28, 3), builds_ds_info=True, batch_size=model_setting.batch_size, model_preprocessing=False)
+        dataset = MnistDataset(model_img_shape=(28, 28, 3), builds_ds_info=True, batch_size=model_setting.batch_size, preprocessing_func=preprocessing_func)
     elif arg_dict["dataset"] == "covid":
-        dataset = Covid19RadiographyDataset(model_img_shape=(224, 224, 3), dataset_path="data", builds_ds_info=True, batch_size=model_setting.batch_size, model_preprocessing=False)
+        dataset = Covid19RadiographyDataset(model_img_shape=(224, 224, 3), dataset_path="data", builds_ds_info=True, batch_size=model_setting.batch_size, preprocessing_func=preprocessing_func)
 
     settings = run_settings(dataset=dataset, model_setting=model_setting, commons=commons(), privacy=privacy(target_eps=arg_dict["eps"]))
 
